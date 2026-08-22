@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suivi Investissements</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card: #151c2c;
+      --border: #232f48;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --crypto-axis: #f59e0b;
+      --green: #22c55e;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 16px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 14px; }
+    
+    .tabs-bar-container { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+    .tabs-bar-container::-webkit-scrollbar { display: none; }
+    .tab-item { display: flex; align-items: center; gap: 6px; background: var(--card); border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; color: var(--muted); cursor: pointer; white-space: nowrap; }
+    .tab-item.active { background: var(--border); color: var(--accent); border-color: var(--accent); }
+    .tab-actions-btn { background: transparent; border: none; color: inherit; font-size: 0.75rem; cursor: pointer; padding: 0 2px; }
+    .btn-add-tab { background: var(--card); border: 1px dashed var(--border); color: var(--accent); padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 800; cursor: pointer; }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+    
+    .header-val { font-size: 1.8rem; font-weight: 800; margin-top: 4px; }
+    .gain { font-size: 0.9rem; font-weight: 600; margin-top: 4px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+    .positive { color: var(--green); }
+    .negative { color: var(--red); }
+    
+    .row-flex { display: flex; justify-content: space-between; align-items: center; }
+    
+    .pockets-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .pocket-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; justify-content: flex-start; }
+    .pocket-title { font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .pocket-val { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-top: 2px; }
+    .pocket-sub { font-size: 0.68rem; color: var(--accent); margin-top: 4px; line-height: 1.35; word-break: break-word; }
+
+    .time-selector { display: flex; gap: 6px; margin-bottom: 10px; }
+    .time-btn { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--muted); padding: 6px 0; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; }
+    .time-btn.active { background: var(--accent); color: #0b0f19; border-color: var(--accent); }
+
+    .chart-container { position: relative; height: 230px; width: 100%; }
+    .filters-container { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .filter-chip { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; background: var(--bg); padding: 4px 8px; border-radius: 20px; border: 1.5px solid var(--border); cursor: pointer; font-weight: 600; }
+    .filter-chip input { cursor: pointer; margin: 0; }
+    
+    .item { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .item:last-child { border-bottom: none; }
+    .item-name { font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 6px; }
+    .account-badge { font-size: 0.65rem; background: var(--border); color: var(--accent); padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+    .item-sub { font-size: 0.75rem; color: var(--muted); line-height: 1.35; margin-top: 2px; }
+    .item-right { text-align: right; }
+    
+    .actions-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+    .btn-action { background: transparent; border: none; font-size: 0.75rem; cursor: pointer; padding: 2px 4px; font-weight: 600; }
+    .btn-edit { color: var(--accent); }
+    .btn-del { color: var(--red); }
+
+    .btn { background: var(--accent); color: #0b0f19; border: none; border-radius: 8px; padding: 10px 14px; font-weight: 700; cursor: pointer; width: 100%; }
+    .btn-primary-sm { padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; cursor: pointer; background: var(--accent); color: #0b0f19; font-weight: 700; border: none; }
+
+    /* Modale */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 16px; backdrop-filter: blur(2px); }
+    .modal-content { background: var(--card); border: 1px solid var(--border); border-radius: 14px; width: 100%; max-width: 440px; padding: 16px; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .modal-title { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+    .btn-close { background: transparent; border: none; color: var(--muted); font-size: 1.1rem; cursor: pointer; font-weight: 700; }
+    
+    label { font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 4px; }
+    input, select { width: 100%; padding: 9px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); margin-bottom: 10px; font-size: 0.85rem; }
+    .error-box { background: rgba(239, 68, 68, 0.1); border: 1px solid var(--red); color: var(--red); padding: 8px; border-radius: 8px; font-size: 0.75rem; display: none; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="tabs-bar-container" id="tabsContainer"></div>
+  <input type="file" id="importFileInput" accept="application/json" style="display:none;" onchange="handleImportFile(event)">
+
+  <!-- 1. Synthèse globale -->
+  <div class="card">
+    <div class="row-flex">
+      <span style="font-size:0.8rem; color:var(--muted);">Valorisation Totale <span id="lastUpdate" style="font-size:0.75rem;">(Dernière MàJ : --:--)</span></span>
+      <button class="btn" style="width:auto; padding:4px 10px; font-size:0.75rem;" onclick="refreshAll()">Actualiser</button>
+    </div>
+    <div class="header-val" id="totalValue">0,00 €</div>
+    <div class="gain" id="totalGain">Achat : 0,00 € • 0,00 € (0.00%)</div>
+    <div class="pockets-grid" id="pocketsGrid"></div>
+  </div>
+
+  <!-- 2. Graphique -->
+  <div class="card">
+    <div class="time-selector">
+      <button class="time-btn" onclick="setTimeframe('1J', this)">1J</button>
+      <button class="time-btn active" onclick="setTimeframe('1S', this)">1S</button>
+      <button class="time-btn" onclick="setTimeframe('1M', this)">1M</button>
+      <button class="time-btn" onclick="setTimeframe('6M', this)">6M</button>
+      <button class="time-btn" onclick="setTimeframe('1A', this)">1A</button>
+      <button class="time-btn" onclick="setTimeframe('ALL', this)">Tout</button>
+    </div>
+
+    <div id="chartError" class="error-box"></div>
+    <div class="filters-container" id="chartFilters"></div>
+
+    <div class="chart-container">
+      <canvas id="portfolioChart"></canvas>
+    </div>
+  </div>
+
+  <!-- 3. Détail des positions -->
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <span style="font-size:0.85rem; font-weight:600; color:var(--muted);">Détail des positions</span>
+      <button class="btn-primary-sm" onclick="openAddModal()">+ Position</button>
+    </div>
+    <div id="assetsList"></div>
+  </div>
+</div>
+
+<!-- 4. Modale d'ajout / modification -->
+<div class="modal-overlay" id="assetModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">Ajouter une position</span>
+      <button class="btn-close" onclick="closeModal()">✕</button>
+    </div>
+    
+    <label>Actif</label>
+    <select id="assetType">
+      <option value="bourse-sp500">S&P 500</option>
+      <option value="bourse-nasdaq">Nasdaq</option>
+      <option value="crypto-bitcoin">Bitcoin (BTC)</option>
+      <option value="crypto-ethereum">Ethereum (ETH)</option>
+      <option value="crypto-solana">Solana (SOL)</option>
+      <option value="manual">Autre actif (Personnalisé)</option>
+    </select>
+    
+    <input type="text" id="assetName" placeholder="Nom personnalisé" style="display:none;">
+
+    <label>Compte / Poche fiscale</label>
+    <select id="assetAccount">
+      <option value="PEA">PEA</option>
+      <option value="CTO">CTO</option>
+      <option value="AV">Assurance-Vie (AV)</option>
+      <option value="Crypto">Wallet Crypto</option>
+      <option value="Autre">Autre compte</option>
+    </select>
+    
+    <label>Date d'acquisition</label>
+    <input type="date" id="assetDate">
+    
+    <label>Quantité</label>
+    <input type="number" id="assetQty" placeholder="Ex: 100 ou 0.15" step="any">
+    
+    <label>Prix de Revient Unitaire (€ / PRU)</label>
+    <input type="number" id="assetPru" placeholder="Ex: 58.18 (0 si minage)" step="any">
+    
+    <div id="manualPriceContainer" style="display:none;">
+      <label>Cours actuel (€ - Actif personnalisé)</label>
+      <input type="number" id="assetManualPrice" placeholder="Ex: 120.50" step="any">
+    </div>
+    
+    <div style="display:flex; gap:8px; margin-top:6px;">
+      <button class="btn" id="modalSubmitBtn" onclick="saveAsset()">Enregistrer</button>
+      <button class="btn" onclick="closeModal()" style="background:var(--border); color:var(--text);">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let appState = JSON.parse(localStorage.getItem('my_invest_app_state') || 'null');
+
+  if (!appState) {
+    let oldSinglePortfolio = JSON.parse(localStorage.getItem('my_portfolio') || 'null');
+    appState = {
+      activeId: 'prof_default',
+      profiles: [
+        {
+          id: 'prof_default',
+          name: 'Portefeuille 1',
+          portfolio: oldSinglePortfolio || []
+        }
+      ]
+    };
+    saveAppState();
+  }
+
+  let chartInstance = null;
+  let currentTimeframe = '1S';
+  let activeFilters = { 'TOTAL': true };
+  let editingIndex = -1;
+
+  const palette = ['#38bdf8', '#f59e0b', '#ec4899', '#10b981', '#a855f7', '#06b6d4', '#eab308'];
+
+  function saveAppState() {
+    localStorage.setItem('my_invest_app_state', JSON.stringify(appState));
+  }
+
+  function getActiveProfile() {
+    return appState.profiles.find(p => p.id === appState.activeId) || appState.profiles[0];
+  }
+
+  function sortActivePortfolio() {
+    const p = getActiveProfile().portfolio;
+    p.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }
+
+  function getChartGroups() {
+    const rawList = getActiveProfile().portfolio;
+    const groups = [];
+
+    rawList.forEach((item, originalIndex) => {
+      const account = item.account || (item.id.startsWith('crypto-') ? 'Crypto' : 'PEA');
+      let g = groups.find(x => x.id === item.id && x.account === account && (item.id !== 'manual' || x.name === item.name));
+
+      if (!g) {
+        g = {
+          id: item.id,
+          name: item.name,
+          account: account,
+          items: []
+        };
+        groups.push(g);
+      }
+      g.items.push({ ...item, originalIndex });
+    });
+
+    return groups;
+  }
+
+  function formatDuration(dateStr) {
+    if (!dateStr) return '';
+    const buyDate = new Date(dateStr);
+    const now = new Date();
+    if (isNaN(buyDate.getTime())) return '';
+
+    let years = now.getFullYear() - buyDate.getFullYear();
+    let months = now.getMonth() - buyDate.getMonth();
+    let days = now.getDate() - buyDate.getDate();
+
+    if (days < 0) months -= 1;
+    if (months < 0) {
+      years -= 1;
+      months += 12;
+    }
+
+    if (years <= 0 && months <= 0) {
+      const diffTime = Math.max(now - buyDate, 0);
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      return `${diffDays} j`;
+    }
+
+    const yStr = `${years} an${years > 1 ? 's' : ''}`;
+    const mStr = `${months} mois`;
+
+    if (years > 0) return `${yStr} et ${mStr}`;
+    return mStr;
+  }
+
+  function renderTabs() {
+    const container = document.getElementById('tabsContainer');
+    container.innerHTML = '';
+
+    appState.profiles.forEach((prof, idx) => {
+      const isActive = prof.id === appState.activeId;
+      const tab = document.createElement('div');
+      tab.className = `tab-item ${isActive ? 'active' : ''}`;
+      tab.onclick = (e) => {
+        if (e.target.tagName !== 'BUTTON') {
+          appState.activeId = prof.id;
+          saveAppState();
+          renderTabs();
+          refreshAll();
+        }
+      };
+
+      tab.innerHTML = `
+        <span>${prof.name}</span>
+        <button class="tab-actions-btn" onclick="openTabMenu(event, ${idx})">⋮</button>
+      `;
+      container.appendChild(tab);
+    });
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-add-tab';
+    addBtn.innerText = '+';
+    addBtn.title = 'Ajouter un portefeuille';
+    addBtn.onclick = handleAddTabClick;
+    container.appendChild(addBtn);
+  }
+
+  function handleAddTabClick() {
+    const choice = prompt(
+      "Créer un portefeuille :\n" +
+      "1 = Nouveau portefeuille vierge\n" +
+      "2 = Importer depuis un fichier JSON",
+      "1"
+    );
+
+    if (choice === '1') {
+      const name = prompt("Nom du nouveau portefeuille :", `Portefeuille ${appState.profiles.length + 1}`);
+      if (!name || !name.trim()) return;
+      const newId = 'prof_' + Date.now();
+      appState.profiles.push({
+        id: newId,
+        name: name.trim(),
+        portfolio: []
+      });
+      appState.activeId = newId;
+      saveAppState();
+      renderTabs();
+      refreshAll();
+    } else if (choice === '2') {
+      document.getElementById('importFileInput').click();
+    }
+  }
+
+  function openTabMenu(e, index) {
+    e.stopPropagation();
+    const prof = appState.profiles[index];
+    const action = prompt(
+      `Options pour [ ${prof.name} ] :\n` +
+      `1 = Renommer\n` +
+      `2 = Déplacer vers la gauche (◀)\n` +
+      `3 = Déplacer vers la droite (▶)\n` +
+      `4 = Exporter CE profil\n` +
+      `5 = Exporter TOUS les profils (Sauvegarde globale)\n` +
+      `6 = Supprimer ce profil`,
+      "1"
+    );
+
+    if (action === '1') {
+      const newName = prompt("Nouveau nom :", prof.name);
+      if (newName && newName.trim()) {
+        prof.name = newName.trim();
+        saveAppState();
+        renderTabs();
+      }
+    } else if (action === '2') {
+      if (index > 0) {
+        const temp = appState.profiles[index - 1];
+        appState.profiles[index - 1] = appState.profiles[index];
+        appState.profiles[index] = temp;
+        saveAppState();
+        renderTabs();
+      }
+    } else if (action === '3') {
+      if (index < appState.profiles.length - 1) {
+        const temp = appState.profiles[index + 1];
+        appState.profiles[index + 1] = appState.profiles[index];
+        appState.profiles[index] = temp;
+        saveAppState();
+        renderTabs();
+      }
+    } else if (action === '4') {
+      exportSingleProfileData(prof);
+    } else if (action === '5') {
+      exportAllProfilesData();
+    } else if (action === '6') {
+      if (appState.profiles.length === 1) return alert("Impossible de supprimer le seul profil existant.");
+      if (confirm(`Supprimer définitivement "${prof.name}" ?`)) {
+        appState.profiles.splice(index, 1);
+        if (appState.activeId === prof.id) appState.activeId = appState.profiles[0].id;
+        saveAppState();
+        renderTabs();
+        refreshAll();
+      }
+    }
+  }
+
+  function exportSingleProfileData(prof) {
+    const blob = new Blob([JSON.stringify({ type: 'single_profile', data: prof }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dateStr = new Date().toISOString().split('T')[0];
+    a.href = url;
+    a.download = `portefeuille_${prof.name.replace(/\s+/g, '_')}_${dateStr}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportAllProfilesData() {
+    const blob = new Blob([JSON.stringify({ type: 'all_profiles', data: appState }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dateStr = new Date().toISOString().split('T')[0];
+    a.href = url;
+    a.download = `portefeuilles_TOTAL_${dateStr}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleImportFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target.result);
+
+        if (imported.type === 'all_profiles' && imported.data && Array.isArray(imported.data.profiles)) {
+          if (confirm("Ce fichier est une sauvegarde globale. Remplacer tous les profils actuels ?")) {
+            appState = imported.data;
+            saveAppState();
+            renderTabs();
+            refreshAll();
+            alert("Sauvegarde globale restaurée.");
+          }
+        } else {
+          let incomingPositions = [];
+          let incomingName = "Profil importé";
+
+          if (imported.type === 'single_profile' && imported.data) {
+            incomingPositions = imported.data.portfolio || [];
+            incomingName = imported.data.name || incomingName;
+          } else if (Array.isArray(imported)) {
+            incomingPositions = imported;
+          } else {
+            throw new Error("Format JSON non reconnu.");
+          }
+
+          const newId = 'prof_' + Date.now();
+          appState.profiles.push({ id: newId, name: incomingName, portfolio: incomingPositions });
+          appState.activeId = newId;
+          saveAppState();
+          renderTabs();
+          refreshAll();
+          alert(`Profil "${incomingName}" importé dans un nouvel onglet.`);
+        }
+      } catch (err) {
+        alert("Erreur d'import : " + err.message);
+      }
+      event.target.value = '';
+    };
+    reader.readAsText(file);
+  }
+
+  function openAddModal() {
+    editingIndex = -1;
+    document.getElementById('modalTitle').innerText = 'Ajouter une position';
+    document.getElementById('modalSubmitBtn').innerText = 'Enregistrer';
+    document.getElementById('assetType').value = 'bourse-sp500';
+    document.getElementById('assetAccount').value = 'PEA';
+    document.getElementById('assetDate').valueAsDate = new Date();
+    document.getElementById('assetQty').value = '';
+    document.getElementById('assetPru').value = '';
+    document.getElementById('assetManualPrice').value = '';
+    document.getElementById('assetName').style.display = 'none';
+    document.getElementById('manualPriceContainer').style.display = 'none';
+    document.getElementById('assetModal').style.display = 'flex';
+  }
+
+  function startEdit(index) {
+    editingIndex = index;
+    const item = getActiveProfile().portfolio[index];
+    document.getElementById('assetType').value = item.id;
+    document.getElementById('assetAccount').value = item.account || 'PEA';
+    document.getElementById('assetDate').value = item.date;
+    document.getElementById('assetQty').value = item.qty;
+    document.getElementById('assetPru').value = item.pru;
+    
+    const isManual = item.id === 'manual';
+    document.getElementById('assetName').style.display = isManual ? 'block' : 'none';
+    if (isManual) document.getElementById('assetName').value = item.name;
+    document.getElementById('manualPriceContainer').style.display = isManual ? 'block' : 'none';
+    document.getElementById('assetManualPrice').value = item.manualPrice || '';
+
+    document.getElementById('modalTitle').innerText = `Modifier : ${item.name}`;
+    document.getElementById('modalSubmitBtn').innerText = 'Enregistrer les modifications';
+    document.getElementById('assetModal').style.display = 'flex';
+  }
+
+  function closeModal() {
+    document.getElementById('assetModal').style.display = 'none';
+  }
+
+  document.getElementById('assetType').addEventListener('change', (e) => {
+    const isManual = e.target.value === 'manual';
+    const isCrypto = e.target.value.startsWith('crypto-');
+    
+    document.getElementById('assetName').style.display = isManual ? 'block' : 'none';
+    document.getElementById('manualPriceContainer').style.display = isManual ? 'block' : 'none';
+    document.getElementById('assetAccount').value = isCrypto ? 'Crypto' : 'PEA';
+  });
+
+  const YAHOO_TICKERS = { 'bourse-sp500': 'PSP5.PA' };
+  let yahooCache = {};
+
+  const CORS_PROXIES = [
+    (u) => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+    (u) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+    (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u)
+  ];
+
+  async function fetchJsonWithTimeout(url, timeoutMs) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(id);
+      if (res.ok) return await res.json();
+    } catch(e) {
+      clearTimeout(id);
+    }
+    return null;
+  }
+
+  async function fetchJsonWithCorsFallback(url) {
+    const direct = await fetchJsonWithTimeout(url, 4000);
+    if (direct) return direct;
+    for (const buildProxyUrl of CORS_PROXIES) {
+      const data = await fetchJsonWithTimeout(buildProxyUrl(url), 4000);
+      if (data) return data;
+    }
+    return null;
+  }
+
+  function yahooRangeParams(tf) {
+    switch (tf) {
+      case '1J': return { range: '1d', interval: '5m' };
+      case '1S': return { range: '5d', interval: '15m' };
+      case '1M': return { range: '1mo', interval: '1d' };
+      case '6M': return { range: '6mo', interval: '1d' };
+      case '1A': return { range: '1y', interval: '1d' };
+      default:   return { range: '5y', interval: '1wk' };
+    }
+  }
+
+  async function fetchYahooChart(ticker, range, interval) {
+    const cacheKey = `${ticker}_${range}_${interval}`;
+    if (yahooCache[cacheKey]) return yahooCache[cacheKey];
+
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`;
+    const data = await fetchJsonWithCorsFallback(url);
+    const result = data && data.chart && data.chart.result && data.chart.result[0];
+    if (!result) return null;
+
+    const currentPrice = result.meta ? result.meta.regularMarketPrice : null;
+    const timestamps = result.timestamp || [];
+    const closes = (result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].close) || [];
+    const history = timestamps
+      .map((ts, i) => ({ timestamp: ts * 1000, price: closes[i] }))
+      .filter(p => p.price !== null && p.price !== undefined);
+
+    const parsed = { currentPrice, history };
+    yahooCache[cacheKey] = parsed;
+    return parsed;
+  }
+
+  async function fetchLivePrices() {
+    let prices = {};
+    let usdtEur = null;
+
+    try {
+      const resEur = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=EURUSDT');
+      const dataEur = await resEur.json();
+      if (dataEur && dataEur.price) usdtEur = 1 / parseFloat(dataEur.price);
+    } catch(e) {}
+
+    if (usdtEur) {
+      try {
+        const [btc, eth, sol] = await Promise.all([
+          fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT').then(r => r.json()),
+          fetch('https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT').then(r => r.json()),
+          fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT').then(r => r.json())
+        ]);
+        if (btc.price) prices['crypto-bitcoin'] = parseFloat(btc.price) * usdtEur;
+        if (eth.price) prices['crypto-ethereum'] = parseFloat(eth.price) * usdtEur;
+        if (sol.price) prices['crypto-solana'] = parseFloat(sol.price) * usdtEur;
+      } catch(e) {}
+    }
+
+    try {
+      const { range, interval } = yahooRangeParams('1M');
+      const spData = await fetchYahooChart(YAHOO_TICKERS['bourse-sp500'], range, interval);
+      if (spData && spData.currentPrice) prices['bourse-sp500'] = spData.currentPrice;
+    } catch(e) {}
+
+    return prices;
+  }
+
+  async function fetchMarketHistory(symbol, interval, limit) {
+    try {
+      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+      const data = await res.json();
+      if (!Array.isArray(data)) return null;
+      return data.map(c => ({ timestamp: c[0], price: parseFloat(c[4]) }));
+    } catch(e) {
+      return null;
+    }
+  }
+
+  function findNearestPoint(series, targetTs) {
+    if (!series || !series.length) return null;
+    let closest = series[0];
+    let minDiff = Math.abs(series[0].timestamp - targetTs);
+    for (let i = 1; i < series.length; i++) {
+      const diff = Math.abs(series[i].timestamp - targetTs);
+      if (diff < minDiff) { minDiff = diff; closest = series[i]; }
+    }
+    return closest;
+  }
+
+  async function refreshAll() {
+    sortActivePortfolio();
+    const rawPortfolio = getActiveProfile().portfolio;
+    const livePrices = await fetchLivePrices();
+    let totalVal = 0;
+    let totalCost = 0;
+    let accountSummaries = {};
+
+    const listEl = document.getElementById('assetsList');
+    listEl.innerHTML = '';
+
+    if (rawPortfolio.length === 0) {
+      listEl.innerHTML = '<div style="text-align:center; color:var(--muted); font-size:0.8rem; padding:16px;">Aucune position dans ce portefeuille.</div>';
+      document.getElementById('totalValue').innerText = '0,00 €';
+      document.getElementById('totalGain').innerHTML = `<span>Achat : 0,00 €</span> <span style="color:var(--muted); margin: 0 4px;">•</span> <span>0,00 € (0.00%)</span>`;
+      document.getElementById('pocketsGrid').innerHTML = '';
+      if (chartInstance) chartInstance.destroy();
+      renderFilterChips([]);
+      return;
+    }
+
+    rawPortfolio.forEach((item, index) => {
+      let currentPrice = (item.manualPrice !== null && item.manualPrice !== undefined && !isNaN(item.manualPrice))
+        ? item.manualPrice
+        : (livePrices[item.id] !== undefined ? livePrices[item.id] : item.pru);
+
+      let val = item.qty * currentPrice;
+      let cost = item.qty * item.pru;
+      let pnl = val - cost;
+      let pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
+
+      item.currentValue = val;
+      item.totalCost = cost;
+      item.currentPrice = currentPrice;
+      const account = item.account || (item.id.startsWith('crypto-') ? 'Crypto' : 'PEA');
+
+      totalVal += val;
+      totalCost += cost;
+
+      if (!accountSummaries[account]) {
+        accountSummaries[account] = { total: 0, items: {} };
+      }
+      accountSummaries[account].total += val;
+      const shortName = item.name.split('(')[0].trim();
+      accountSummaries[account].items[shortName] = (accountSummaries[account].items[shortName] || 0) + val;
+
+      const purchaseDate = item.date ? new Date(item.date).toLocaleDateString('fr-FR') : 'N/A';
+      const durationStr = formatDuration(item.date);
+
+      listEl.innerHTML += `
+        <div class="item">
+          <div>
+            <div class="item-name">
+              ${item.name}
+              <span class="account-badge">${account}</span>
+            </div>
+            <div class="item-sub">
+              ${item.qty.toLocaleString('fr-FR', {maximumFractionDigits: 8})} parts • Cours : ${currentPrice.toLocaleString('fr-FR', {style:'currency', currency:'EUR'})}<br>
+              PRU : ${item.pru > 0 ? item.pru.toLocaleString('fr-FR', {style:'currency', currency:'EUR'}) : '0 €'} • Achat : ${purchaseDate}
+            </div>
+          </div>
+          <div class="item-right">
+            <div>
+              <span style="font-weight:700; font-size:0.95rem; color:var(--text);">${cost.toLocaleString('fr-FR', {style:'currency', currency:'EUR'})} → </span>
+              <span style="font-weight:700; font-size:0.95rem; color:var(--text);">${val.toLocaleString('fr-FR', {style:'currency', currency:'EUR'})}</span>
+            </div>
+            <div style="display: flex; align-items: baseline; justify-content: flex-end; gap: 4px; margin-top: 2px;">
+              ${durationStr ? `<span style="font-size:0.9rem; font-weight:600; color:var(--text); white-space: nowrap;">(${durationStr})</span>` : ''}
+              <span class="${pnl >= 0 ? 'positive' : 'negative'}" style="font-size:0.9rem; font-weight:600; white-space: nowrap;">
+                ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} € ${cost > 0 ? `(${pnlPct.toFixed(2)}%)` : ''}
+              </span>
+            </div>
+            <div class="actions-row">
+              <button class="btn-action btn-edit" onclick="startEdit(${index})">Modifier</button>
+              <button class="btn-action btn-del" onclick="deleteAsset(${index})">Supprimer</button>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    let totalPnl = totalVal - totalCost;
+    let totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+
+    document.getElementById('totalValue').innerText = totalVal.toLocaleString('fr-FR', {style:'currency', currency:'EUR'});
+    document.getElementById('totalGain').innerHTML = `
+      <span style="color: var(--text); font-weight: 600;">Achat : ${totalCost.toLocaleString('fr-FR', {style:'currency', currency:'EUR'})}</span>
+      <span style="color: var(--muted); margin: 0 4px;">•</span>
+      <span class="${totalPnl >= 0 ? 'positive' : 'negative'}">
+        ${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)} € ${totalCost > 0 ? `(${totalPnlPct.toFixed(2)}%)` : ''}
+      </span>
+    `;
+
+    document.getElementById('lastUpdate').innerText = `(Dernière MàJ : ${new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})})`;
+
+    renderPocketsSummary(accountSummaries, totalVal);
+    
+    const chartGroups = getChartGroups();
+    renderFilterChips(chartGroups);
+    await buildRealChart(chartGroups);
+  }
+
+  function renderPocketsSummary(summaries, totalVal) {
+    const grid = document.getElementById('pocketsGrid');
+    grid.innerHTML = '';
+
+    const pocketKeys = ['PEA', 'Crypto', 'CTO', 'AV', 'Autre'];
+    pocketKeys.forEach(key => {
+      if (summaries[key] && summaries[key].total > 0) {
+        const sharePct = totalVal > 0 ? ((summaries[key].total / totalVal) * 100).toFixed(1) : 0;
+        const subLines = Object.entries(summaries[key].items).map(([name, sumVal]) => 
+          `• ${name} : ${sumVal.toLocaleString('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0})}`
+        );
+        grid.innerHTML += `
+          <div class="pocket-box">
+            <div class="row-flex">
+              <span class="pocket-title">${key}</span>
+              <span style="font-size:0.7rem; color:var(--muted); font-weight:700;">${sharePct} %</span>
+            </div>
+            <div class="pocket-val">${summaries[key].total.toLocaleString('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0})}</div>
+            <div class="pocket-sub">${subLines.join('<br>')}</div>
+          </div>
+        `;
+      }
+    });
+  }
+
+  function renderFilterChips(chartGroups) {
+    const container = document.getElementById('chartFilters');
+    container.innerHTML = `
+      <label class="filter-chip" style="border-color: #38bdf8; color: #38bdf8;">
+        <input type="checkbox" ${activeFilters['TOTAL'] !== false ? 'checked' : ''} onchange="toggleFilter('TOTAL')">
+        Total
+      </label>
+    `;
+
+    chartGroups.forEach((g, index) => {
+      const key = `group-${index}`;
+      const color = palette[(index + 1) % palette.length];
+      
+      if (activeFilters[key] === undefined) activeFilters[key] = true;
+      
+      const accountBadge = g.account ? ` [${g.account}]` : '';
+      container.innerHTML += `
+        <label class="filter-chip" style="border-color: ${color}; color: ${color};">
+          <input type="checkbox" ${activeFilters[key] ? 'checked' : ''} onchange="toggleFilter('${key}')">
+          ${g.name.split('(')[0].trim()}${accountBadge}
+        </label>
+      `;
+    });
+  }
+
+  function toggleFilter(key) {
+    activeFilters[key] = !activeFilters[key];
+    buildRealChart(getChartGroups());
+  }
+
+  function saveAsset() {
+    const type = document.getElementById('assetType').value;
+    const account = document.getElementById('assetAccount').value;
+    const qty = parseFloat(document.getElementById('assetQty').value);
+    const pru = parseFloat(document.getElementById('assetPru').value) || 0;
+    const date = document.getElementById('assetDate').value;
+    
+    let name = document.getElementById('assetType').options[document.getElementById('assetType').selectedIndex].text;
+    let manualPrice = null;
+
+    if (type === 'manual') {
+      name = document.getElementById('assetName').value || 'Actif';
+      const manualVal = parseFloat(document.getElementById('assetManualPrice').value);
+      if (!isNaN(manualVal)) manualPrice = manualVal;
+    }
+
+    if (!qty || isNaN(qty)) return alert("Quantité requise.");
+
+    const currentPortfolio = getActiveProfile().portfolio;
+
+    if (editingIndex > -1) {
+      currentPortfolio[editingIndex] = {
+        id: type, name, account, qty, pru, date: date || new Date().toISOString().split('T')[0], manualPrice
+      };
+    } else {
+      currentPortfolio.push({
+        id: type, name, account, qty, pru, date: date || new Date().toISOString().split('T')[0], manualPrice
+      });
+    }
+
+    sortActivePortfolio();
+    saveAppState();
+    closeModal();
+    refreshAll();
+  }
+
+  function deleteAsset(index) {
+    getActiveProfile().portfolio.splice(index, 1);
+    saveAppState();
+    refreshAll();
+  }
+
+  function setTimeframe(tf, btn) {
+    currentTimeframe = tf;
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    buildRealChart(getChartGroups());
+  }
+
+  async function buildRealChart(chartGroups) {
+    const errBox = document.getElementById('chartError');
+    errBox.style.display = 'none';
+
+    const rawPortfolio = getActiveProfile().portfolio;
+    if (!rawPortfolio || rawPortfolio.length === 0) {
+      if (chartInstance) chartInstance.destroy();
+      return;
+    }
+
+    let earliestDate = new Date();
+    rawPortfolio.forEach(item => {
+      if (item.date) {
+        const d = new Date(item.date);
+        if (d < earliestDate) earliestDate = d;
+      }
+    });
+
+    let interval = '2h';
+    let limit = 84;
+    let labelFormat = { weekday: 'short', hour: '2-digit' };
+
+    if (currentTimeframe === '1J') {
+      interval = '30m'; limit = 48; labelFormat = { hour: '2-digit', minute: '2-digit' };
+    } else if (currentTimeframe === '1S') {
+      interval = '2h'; limit = 84; labelFormat = { weekday: 'short', hour: '2-digit' };
+    } else if (currentTimeframe === '1M') {
+      interval = '1d'; limit = 30; labelFormat = { day: '2-digit', month: '2-digit' };
+    } else if (currentTimeframe === '6M') {
+      interval = '1w'; limit = 26; labelFormat = { month: 'short' };
+    } else if (currentTimeframe === '1A') {
+      interval = '1w'; limit = 52; labelFormat = { month: 'short' };
+    } else if (currentTimeframe === 'ALL') {
+      const diffMonths = Math.max(Math.ceil((new Date() - earliestDate) / (1000 * 60 * 60 * 24 * 30.4)), 2);
+      interval = '1M';
+      limit = Math.min(Math.max(diffMonths, 3), 120);
+      labelFormat = { year: 'numeric', month: 'short' };
+    }
+
+    const baseTimeline = await fetchMarketHistory('BTCUSDT', interval, limit);
+    if (!baseTimeline || baseTimeline.length === 0) {
+      errBox.innerText = "Données de marché indisponibles.";
+      errBox.style.display = 'block';
+      if (chartInstance) chartInstance.destroy();
+      return;
+    }
+
+    let eurUsdtHistory = await fetchMarketHistory('EURUSDT', interval, limit);
+    let usdtToEur = (idx) => {
+      if (eurUsdtHistory && eurUsdtHistory[idx] && eurUsdtHistory[idx].price) return 1 / eurUsdtHistory[idx].price;
+      return 0.92;
+    };
+
+    const labels = baseTimeline.map(point => new Date(point.timestamp).toLocaleDateString('fr-FR', labelFormat));
+    let groupSeriesEur = [];
+
+    for (let gIdx = 0; gIdx < chartGroups.length; gIdx++) {
+      const group = chartGroups[gIdx];
+      let history = null;
+
+      if (group.id === 'crypto-bitcoin') history = baseTimeline;
+      else if (group.id === 'crypto-ethereum') history = await fetchMarketHistory('ETHUSDT', interval, limit);
+      else if (group.id === 'crypto-solana') history = await fetchMarketHistory('SOLUSDT', interval, limit);
+
+      const isBourseItem = group.id === 'bourse-sp500' && !!YAHOO_TICKERS[group.id];
+      if (isBourseItem) {
+        const ticker = YAHOO_TICKERS[group.id];
+        const { range, interval: yInterval } = yahooRangeParams(currentTimeframe);
+        const yahooData = await fetchYahooChart(ticker, range, yInterval);
+        history = yahooData ? yahooData.history : null;
+      }
+
+      let groupPoints = new Array(baseTimeline.length).fill(0);
+
+      group.items.forEach(item => {
+        const buyDate = item.date ? new Date(item.date) : new Date();
+        buyDate.setHours(0,0,0,0);
+        const initialCost = item.totalCost || (item.qty * item.pru);
+        const currentVal = item.currentValue || (item.qty * item.currentPrice);
+
+        for (let t = 0; t < baseTimeline.length; t++) {
+          const pointDate = new Date(baseTimeline[t].timestamp);
+          if (pointDate < buyDate) continue;
+
+          if (isBourseItem && history && history.length) {
+            const nearest = findNearestPoint(history, baseTimeline[t].timestamp);
+            const priceEur = nearest ? nearest.price : null;
+            if (priceEur !== null) {
+              groupPoints[t] += (item.qty * priceEur);
+            } else {
+              const progress = baseTimeline.length > 1 ? (t / (baseTimeline.length - 1)) : 1;
+              groupPoints[t] += (initialCost + (currentVal - initialCost) * progress);
+            }
+          } else if (history && history[t]) {
+            const priceEur = history[t].price * usdtToEur(t);
+            groupPoints[t] += (item.qty * priceEur);
+          } else {
+            const progress = baseTimeline.length > 1 ? (t / (baseTimeline.length - 1)) : 1;
+            groupPoints[t] += (initialCost + (currentVal - initialCost) * progress);
+          }
+        }
+      });
+
+      groupSeriesEur.push(groupPoints);
+    }
+
+    const toPercent = (series) => {
+      const firstValid = series.find(v => v > 0) || 1;
+      return series.map(v => v === 0 ? 0 : ((v - firstValid) / firstValid) * 100);
+    };
+
+    let datasets = [];
+    let hasCryptoOnSecondary = false;
+
+    if (activeFilters['TOTAL'] !== false) {
+      const totalSeriesEur = baseTimeline.map((_, tIdx) => {
+        return groupSeriesEur.reduce((acc, s) => acc + s[tIdx], 0);
+      });
+
+      datasets.push({
+        label: 'Total',
+        data: toPercent(totalSeriesEur),
+        rawEur: totalSeriesEur,
+        borderColor: '#38bdf8',
+        backgroundColor: 'transparent',
+        fill: false,
+        tension: 0.1,
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHitRadius: 10,
+        pointHoverRadius: 4,
+        yAxisID: 'y'
+      });
+    }
+
+    chartGroups.forEach((g, index) => {
+      const key = `group-${index}`;
+      if (activeFilters[key]) {
+        const color = palette[(index + 1) % palette.length];
+        const dataEur = groupSeriesEur[index];
+        const isCrypto = g.id.startsWith('crypto-');
+        const assignedAxis = isCrypto ? 'y1' : 'y';
+        if (isCrypto) hasCryptoOnSecondary = true;
+
+        const accountBadge = g.account ? ` [${g.account}]` : '';
+        datasets.push({
+          label: `${g.name.split('(')[0].trim()}${accountBadge}`,
+          data: toPercent(dataEur),
+          rawEur: dataEur,
+          borderColor: color,
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.1,
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHitRadius: 10,
+          pointHoverRadius: 4,
+          yAxisID: assignedAxis
+        });
+      }
+    });
+
+    const ctx = document.getElementById('portfolioChart').getContext('2d');
+    if (chartInstance) chartInstance.destroy();
+
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { 
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (c) => {
+                const eurVal = c.dataset.rawEur ? c.dataset.rawEur[c.dataIndex] : 0;
+                return ` ${c.dataset.label}: ${eurVal.toLocaleString('fr-FR', {style:'currency', currency:'EUR'})}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 6 } },
+          y: { 
+            position: 'left',
+            grid: { color: '#232f48' }, 
+            ticks: { 
+              color: '#38bdf8', 
+              font: { size: 9 },
+              callback: (val) => `${val >= 0 ? '+' : ''}${val.toFixed(1)} %`
+            } 
+          },
+          y1: {
+            position: 'right',
+            display: hasCryptoOnSecondary,
+            grid: { drawOnChartArea: false },
+            ticks: { 
+              color: '#f59e0b', 
+              font: { size: 9 },
+              callback: (val) => `${val >= 0 ? '+' : ''}${val.toFixed(1)} %`
+            }
+          }
+        }
+      }
+    });
+  }
+
+  renderTabs();
+  refreshAll();
+</script>
+</body>
+</html>
